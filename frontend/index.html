@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroCoder Studio - Eye Tracking Test</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --accent-glow: 0 0 30px rgba(56, 189, 248, 0.6);
+            --active-bg: rgba(56, 189, 248, 0.2);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --transition-speed: 0.3s;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        header {
+            position: absolute;
+            top: 2rem;
+            text-align: center;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        #status {
+            font-size: 0.9rem;
+            color: #ef4444; /* Rojo desconectado por defecto */
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all var(--transition-speed);
+        }
+
+        #status.connected {
+            color: #22c55e;
+        }
+
+        #status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 150px);
+            grid-template-rows: repeat(3, 150px);
+            gap: 15px;
+            padding: 30px;
+            background: var(--panel-bg);
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .zone {
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .zone.empty {
+            opacity: 0.2;
+            background: transparent;
+            border-color: transparent;
+        }
+
+        .zone:not(.empty)::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity var(--transition-speed);
+        }
+
+        .zone.active {
+            background: var(--active-bg);
+            border-color: #38bdf8;
+            color: #fff;
+            box-shadow: var(--accent-glow);
+            transform: scale(1.05);
+            z-index: 5;
+        }
+
+        .zone.active::after {
+            opacity: 1;
+        }
+
+        #event-log {
+            position: relative;
+            margin-top: 2rem;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: #38bdf8;
+            font-size: 0.85rem;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        .controls {
+            position: relative;
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            width: 100%;
+            max-width: 450px;
+            align-items: center;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .controls select {
+            padding: 10px;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+        }
+        .controls select option {
+            background: #0f172a;
+            color: #38bdf8;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            flex: 1;
+        }
+
+        #btn-apply-last {
+            width: 100%;
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border-color: rgba(34, 197, 94, 0.4);
+        }
+        
+        #btn-apply-last:hover {
+            background: rgba(34, 197, 94, 0.3);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+        }
+
+        .controls button:hover {
+            background: rgba(56, 189, 248, 0.3);
+            box-shadow: var(--accent-glow);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Intention Engine Visualizer</h1>
+        <div id="status">Desconectado</div>
+    </header>
+
+    <div class="grid-container">
+        <div class="zone empty"></div>
+        <div class="zone" id="zone-GAZE_UP">ARRIBA</div>
+        <div class="zone empty"></div>
+        
+        <div class="zone" id="zone-GAZE_LEFT">IZQUIERDA</div>
+        <div class="zone" id="zone-GAZE_CENTER">CENTRO</div>
+        <div class="zone" id="zone-GAZE_RIGHT">DERECHA</div>
+        
+        <div class="zone empty"></div>
+        <div class="zone" id="zone-GAZE_DOWN">ABAJO</div>
+        <div class="zone empty"></div>
+    </div>
+
+    <div id="event-log">Último evento: Ninguno</div>
+
+    <div class="controls">
+        <div class="controls-row">
+            <select id="monitor-select">
+                <option value="0">Pantalla 1 (Laptop)</option>
+                <option value="1">Pantalla 2 (Externa)</option>
+                <option value="2">Pantalla 3</option>
+            </select>
+            <button id="btn-recalib">Recalibrar en Pantalla</button>
+        </div>
+        <div class="controls-row">
+            <button id="btn-test">Test</button>
+            <button id="btn-ok">Ok</button>
+        </div>
+        <button id="btn-apply-last">Aplicar última configuración</button>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('event-log');
+        const zones = document.querySelectorAll('.zone:not(.empty)');
+        let isCalibrating = false;
+        
+        function clearActiveZones() {
+            zones.forEach(zone => {
+                zone.classList.remove('active');
+                zone.style.borderColor = 'transparent';
+                zone.style.background = 'rgba(255, 255, 255, 0.03)';
+                zone.style.boxShadow = 'none';
+            });
+        }
+
+        function setCalibrationMode(targetId) {
+            clearActiveZones();
+            const targetZone = document.getElementById(`zone-${targetId}`);
+            if (targetZone) {
+                targetZone.style.borderColor = '#eab308'; // Amarillo
+                targetZone.style.background = 'rgba(234, 179, 8, 0.2)';
+                targetZone.style.boxShadow = '0 0 30px rgba(234, 179, 8, 0.6)';
+            }
+            logEl.textContent = `[MODO CALIBRACIÓN] Mira al cuadro AMARILLO y presiona 'ESPACIO' en Python`;
+            logEl.style.color = '#eab308';
+            logEl.style.borderColor = '#eab308';
+        }
+
+        function setTestingMode(eventData) {
+            logEl.style.color = '#38bdf8';
+            logEl.style.borderColor = 'rgba(56, 189, 248, 0.2)';
+            
+            const eyeEvent = eventData.event;
+            logEl.textContent = `Último evento: ${eyeEvent} (Confianza: ${eventData.confidence})`;
+            
+            clearActiveZones();
+            const targetZone = document.getElementById(`zone-${eyeEvent}`);
+            if (targetZone) {
+                targetZone.classList.add('active');
+            }
+        }
+
+        document.getElementById('btn-test').addEventListener('click', () => {
+            if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+                globalWs.send(JSON.stringify({command: "TEST_OK"}));
+            }
+        });
+
+        document.getElementById('btn-ok').addEventListener('click', () => {
+            if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+                globalWs.send(JSON.stringify({command: "TEST_OK"}));
+            }
+        });
+
+        document.getElementById('btn-recalib').addEventListener('click', () => {
+            if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+                // Primero seleccionamos la pantalla
+                const monitorIndex = parseInt(document.getElementById('monitor-select').value);
+                globalWs.send(JSON.stringify({command: "SET_MONITOR", index: monitorIndex}));
+                
+                // Luego iniciamos calibración
+                setTimeout(() => {
+                    globalWs.send(JSON.stringify({command: "RECALIBRATE"}));
+                }, 100);
+            }
+        });
+
+        document.getElementById('monitor-select').addEventListener('change', (e) => {
+            if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+                const monitorIndex = parseInt(e.target.value);
+                globalWs.send(JSON.stringify({command: "SET_MONITOR", index: monitorIndex}));
+            }
+        });
+
+        document.getElementById('btn-apply-last').addEventListener('click', () => {
+            if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+                globalWs.send(JSON.stringify({command: "APPLY_LAST_CONFIG"}));
+                // Limpiar la visualización de calibración
+                clearActiveZones();
+                logEl.textContent = `Último evento: GAZE_CENTER (Usando config guardada)`;
+                logEl.style.color = '#38bdf8';
+                logEl.style.borderColor = 'rgba(56, 189, 248, 0.2)';
+            }
+        });
+
+        let globalWs = null;
+
+        function connect() {
+            globalWs = new WebSocket('ws://127.0.0.1:8765');
+            
+            globalWs.onopen = () => {
+                statusEl.textContent = 'Conectado';
+                statusEl.classList.add('connected');
+                console.log('Conectado al Motor de Intención Visual');
+            };
+
+            globalWs.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === "CALIBRATION") {
+                    setCalibrationMode(data.target);
+                } else if (data.type === "TESTING") {
+                    setTestingMode(data);
+                }
+            };
+
+            globalWs.onclose = () => {
+                statusEl.textContent = 'Reconectando...';
+                statusEl.classList.remove('connected');
+                clearActiveZones();
+                setTimeout(connect, 2000); 
+            };
+
+            globalWs.onerror = (err) => {
+                console.error('Error de WebSocket:', err);
+                globalWs.close();
+            };
+        }
+
+        connect();
+    </script>
+</body>
+</html>

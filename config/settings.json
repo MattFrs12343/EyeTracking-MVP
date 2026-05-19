@@ -1,0 +1,78 @@
+{
+  "camera": {
+    "brightness": 50,
+    "contrast": 50,
+    "sharpness": 50,
+    "gamma": 50,
+    "exposure": 50,
+    "mirror": true
+  },
+  "detection": {
+    "tracking": true,
+    "confidence": 0.8,
+    "landmarks": true,
+    "iris": true,
+    "eyes": true,
+    "blink": true,
+    "stability": 0.7,
+    "distance": 60,
+    "angle": 15,
+    "overlay": true,
+    "eyeoverlay": true,
+    "irisoverlay": true,
+    "faceoverlay": false,
+    "crosshair": false,
+    "overlayopacity": 0.8
+  },
+  "movement": {
+    "smoothness": 0.7,
+    "sensitivity": 1.0,
+    "deadzone": 5,
+    "threshold": 0.5,
+    "prediction": true,
+    "filter": true,
+    "jitter": 0.3,
+    "precision": 0.8,
+    "offsetx": 0,
+    "offsety": 0,
+    "mruv_base_speed": 1,
+    "mruv_acceleration": 0.6,
+    "mruv_max_speed": 40.0,
+    "mruv_accel_delay": 10
+  },
+  "dwell": {
+    "dwell_time": 800,
+    "clickdelay": 300,
+    "hoverdelay": 500,
+    "radialdelay": 700,
+    "holdtime": 1000,
+    "cooldown": 400
+  },
+  "calibration": {
+    "enabled": true,
+    "points": 9,
+    "tolerance": 0.2,
+    "drift": 0.1,
+    "center": true
+  },
+  "cursor": {
+    "enabled": true,
+    "cursorsize": 20,
+    "cursoropacity": 0.8,
+    "trail": false,
+    "animation": true
+  },
+  "performance": {
+    "buffer": 3,
+    "latency": 50,
+    "optimization": true,
+    "interval": 16
+  },
+  "user_state": {
+    "presence": true,
+    "attention": true,
+    "closedeyes": true,
+    "lostface": true,
+    "timeout": 5000
+  }
+}
