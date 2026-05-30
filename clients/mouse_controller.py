@@ -76,6 +76,14 @@ class MouseController:
         self.speed = 10  # Píxeles por frame de movimiento
         self.global_cursor_hidden = False
         
+        # Preferencia original del usuario para el cursor global
+        self.toggle_global_cursor_setting = False
+        
+        # Variables de control para override físico por ratón
+        self.last_physical_movement_time = 0
+        self.expected_x, self.expected_y = 0, 0
+        self.physical_override_active = False
+        
         # Iniciar el hilo del bucle de movimiento
         self.move_thread = threading.Thread(target=self.movement_loop, daemon=True)
         self.move_thread.start()
@@ -97,6 +105,7 @@ class MouseController:
             self.current_state = "GAZE_CENTER"
 
     def toggle_global_cursor(self, active):
+        self.toggle_global_cursor_setting = active
         if active and not self.global_cursor_hidden:
             hide_global_cursor()
             self.global_cursor_hidden = True
@@ -106,23 +115,81 @@ class MouseController:
 
     def movement_loop(self):
         print("[MouseController] Bucle de movimiento iniciado.")
+        # Inicializar posiciones esperadas con la posición real inicial
+        try:
+            self.expected_x, self.expected_y = pyautogui.position()
+        except Exception:
+            self.expected_x, self.expected_y = 0, 0
+
         while self.is_running:
+            # 1. Obtener la posición física actual del cursor
+            try:
+                curr_x, curr_y = pyautogui.position()
+            except Exception:
+                curr_x, curr_y = self.expected_x, self.expected_y
+
+            # 2. Detectar si el usuario movió físicamente el ratón
+            # Comparamos la posición actual contra el valor que calculamos y esperábamos
+            dx_physical = abs(curr_x - self.expected_x)
+            dy_physical = abs(curr_y - self.expected_y)
+
+            # Si se movió físicamente más de 2 píxeles
+            if dx_physical > 2 or dy_physical > 2:
+                # Si estaba oculto globalmente, lo restauramos de inmediato
+                if self.global_cursor_hidden and not self.physical_override_active:
+                    restore_global_cursor()
+                    self.physical_override_active = True
+                    print("[MouseController] Movimiento físico del ratón detectado. Mostrando cursor por 3 segundos.")
+                # Actualizar el tiempo del último movimiento físico
+                self.last_physical_movement_time = time.time()
+
+            # 3. Evaluar el tiempo transcurrido desde el último movimiento físico
+            if self.physical_override_active:
+                if time.time() - self.last_physical_movement_time >= 3.0:
+                    # Han pasado los 3 segundos, volvemos a ocultar el cursor si la preferencia original sigue activa
+                    if self.toggle_global_cursor_setting:
+                        hide_global_cursor()
+                        print("[MouseController] Tiempo de gracia finalizado. Ocultando cursor de Windows nuevamente.")
+                    self.physical_override_active = False
+
+            # 4. Movimiento normal del eye tracking
             if self.is_tracking_active:
-                try:
-                    if self.current_state == "GAZE_LEFT":
-                        pyautogui.moveRel(-self.speed, 0, _pause=False)
-                    elif self.current_state == "GAZE_RIGHT":
-                        pyautogui.moveRel(self.speed, 0, _pause=False)
-                    elif self.current_state == "GAZE_UP":
-                        pyautogui.moveRel(0, -self.speed, _pause=False)
-                    elif self.current_state == "GAZE_DOWN":
-                        pyautogui.moveRel(0, self.speed, _pause=False)
-                except pyautogui.FailSafeException:
-                    print("\n[!] FAILSAFE ACTIVADO por mover el ratón a la esquina.")
-                    print("[!] Apagando tracking por seguridad. Usa los botones web para volver a activarlo.")
-                    self.is_tracking_active = False
-                    self.current_state = "GAZE_CENTER"
-            
+                # Si el usuario tomó control físico temporal, pausamos el eye-tracking para no "luchar"
+                if not self.physical_override_active:
+                    try:
+                        dx, dy = 0, 0
+                        if self.current_state == "GAZE_LEFT":
+                            dx = -self.speed
+                        elif self.current_state == "GAZE_RIGHT":
+                            dx = self.speed
+                        elif self.current_state == "GAZE_UP":
+                            dy = -self.speed
+                        elif self.current_state == "GAZE_DOWN":
+                            dy = self.speed
+
+                        if dx != 0 or dy != 0:
+                            pyautogui.moveRel(dx, dy, _pause=False)
+                            # Actualizar la posición esperada para evitar detectarlo como movimiento físico del usuario
+                            self.expected_x, self.expected_y = pyautogui.position()
+                    except pyautogui.FailSafeException:
+                        print("\n[!] FAILSAFE ACTIVADO por mover el ratón a la esquina.")
+                        print("[!] Apagando tracking por seguridad. Usa los botones web para volver a activarlo.")
+                        self.is_tracking_active = False
+                        self.current_state = "GAZE_CENTER"
+                        if self.global_cursor_hidden:
+                            self.toggle_global_cursor(False)
+                    except Exception as e:
+                        print(f"[MouseController] Error al mover mouse: {e}")
+                else:
+                    # Si el control físico está activo, simplemente actualizamos la posición esperada
+                    # para seguir la posición física que el usuario está fijando
+                    self.expected_x = curr_x
+                    self.expected_y = curr_y
+            else:
+                # Si no está activo el eye tracking, la posición esperada sigue siempre al cursor físico real
+                self.expected_x = curr_x
+                self.expected_y = curr_y
+
             # Correr aproximadamente a 60 ciclos por segundo
             time.sleep(1.0 / 60.0)
 

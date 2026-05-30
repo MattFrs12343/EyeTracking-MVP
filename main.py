@@ -127,8 +127,9 @@ def main():
     try:
         mouse_client_path = os.path.join(os.path.dirname(__file__), 'clients', 'mouse_controller.py')
         import subprocess
-        subprocess.Popen(["python", mouse_client_path], shell=False)
-        print("[Main] Controlador de Mouse iniciado en segundo plano.")
+        import sys
+        subprocess.Popen([sys.executable, mouse_client_path], shell=False)
+        print("[Main] Controlador de Mouse iniciado en segundo plano usando sys.executable.")
     except Exception as e:
         print(f"[Main] Error al iniciar el controlador de mouse: {e}")
 
@@ -150,6 +151,15 @@ def main():
     ]
     calib_idx = 0
     in_calibration = True
+
+    import sys
+    if '--skip-calibration' in sys.argv:
+        in_calibration = False
+        overlay.hide()
+        intention_engine.calibration_points.clear()
+        config_manager.load_config()
+        intention_engine = IntentionEngine(config_manager)
+        print("[Main] Flag --skip-calibration detectado. Saltando calibración visual y usando última config.")
 
     while cap.isOpened():
         success, image = cap.read()
