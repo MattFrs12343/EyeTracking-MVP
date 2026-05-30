@@ -205,6 +205,14 @@ def main():
                             event_server.broadcast_message({"type": "SYSTEM_COMMAND", "command": "TOGGLE_MOUSE"}), 
                             event_server.loop
                         )
+                elif cmd == "TOGGLE_GLOBAL_CURSOR":
+                    active = data.get("active", False)
+                    print(f"[Main] Solicitud de cambio en cursor global: active={active}")
+                    if event_server.loop and event_server.loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            event_server.broadcast_message({"type": "SYSTEM_COMMAND", "command": "TOGGLE_GLOBAL_CURSOR", "active": active}), 
+                            event_server.loop
+                        )
                 elif cmd == "CLOSE":
                     print("[Main] Cerrando por comando web.")
                     cap.release()
