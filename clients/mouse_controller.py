@@ -79,6 +79,10 @@ class MouseController:
         # Preferencia original del usuario para el cursor global
         self.toggle_global_cursor_setting = False
         
+        # Referencias para WebSocket
+        self.websocket = None
+        self.loop = None
+        
         # Variables de control para override físico por ratón
         self.last_physical_movement_time = 0
         self.expected_x, self.expected_y = 0, 0
@@ -88,13 +92,31 @@ class MouseController:
         self.move_thread = threading.Thread(target=self.movement_loop, daemon=True)
         self.move_thread.start()
 
-        # Registrar hotkey Failsafe F9 para restaurar el cursor en caso de emergencia
+        # Registrar hotkeys
         try:
             import keyboard
-            keyboard.add_hotkey('f9', lambda: self.toggle_global_cursor(False))
-            print("[MouseController] Failsafe: Presiona 'F9' en tu teclado en cualquier momento para restaurar el cursor de Windows.")
+            # F9 FailSafe para restaurar cursor
+            keyboard.add_hotkey('f9', lambda: self.toggle_global_cursor(False, notify_server=True))
+            # Atajo 'm' o 'M' para activar/desactivar ocultamiento global
+            keyboard.add_hotkey('m', lambda: self.toggle_global_cursor(not self.toggle_global_cursor_setting, notify_server=True))
+            # Atajo 't' o 'T' para alternar tracking de mouse
+            keyboard.add_hotkey('t', lambda: self.send_command_to_engine({"command": "TEST_OK"}))
+            print("[MouseController] Failsafe: Presiona 'F9' para restaurar el cursor de Windows.")
+            print("[MouseController] Atajo 'M': Presiona 'M' en cualquier momento para alternar ocultar/mostrar cursor.")
+            print("[MouseController] Atajo 'T': Presiona 'T' en cualquier momento para alternar el tracking del mouse.")
         except Exception as e:
-            print(f"[MouseController] No se pudo configurar el hotkey Failsafe F9: {e}")
+            print(f"[MouseController] No se pudo configurar los hotkeys con 'keyboard': {e}")
+
+    def send_command_to_engine(self, command_dict):
+        """Envía un comando al motor de eye tracking si la conexión websocket está activa."""
+        if hasattr(self, 'websocket') and self.websocket and hasattr(self, 'loop') and self.loop:
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self.websocket.send(json.dumps(command_dict)),
+                    self.loop
+                )
+            except Exception as e:
+                print(f"[MouseController] Error al enviar comando al motor: {e}")
 
     def toggle_tracking(self):
         self.is_tracking_active = not self.is_tracking_active
@@ -104,7 +126,10 @@ class MouseController:
             print("\n*** [MouseController] TRACKING DE MOUSE DESACTIVADO ***")
             self.current_state = "GAZE_CENTER"
 
-    def toggle_global_cursor(self, active):
+    def toggle_global_cursor(self, active, notify_server=True):
+        if self.toggle_global_cursor_setting == active and self.global_cursor_hidden == active:
+            return
+            
         self.toggle_global_cursor_setting = active
         if active and not self.global_cursor_hidden:
             hide_global_cursor()
@@ -112,6 +137,12 @@ class MouseController:
         elif not active and self.global_cursor_hidden:
             restore_global_cursor()
             self.global_cursor_hidden = False
+            
+        if notify_server:
+            self.send_command_to_engine({
+                "command": "TOGGLE_GLOBAL_CURSOR",
+                "active": active
+            })
 
     def movement_loop(self):
         print("[MouseController] Bucle de movimiento iniciado.")
@@ -194,12 +225,14 @@ class MouseController:
             time.sleep(1.0 / 60.0)
 
     async def connect_to_engine(self):
+        self.loop = asyncio.get_running_loop()
         uri = "ws://127.0.0.1:8765"
         print(f"[MouseController] Conectando al motor en {uri}...")
     
         while self.is_running:
             try:
                 async with websockets.connect(uri) as websocket:
+                    self.websocket = websocket
                     print("[MouseController] ¡Conectado al Motor de Eye Tracking!")
                     
                     async for message in websocket:
@@ -222,14 +255,16 @@ class MouseController:
                                 self.toggle_tracking()
                             elif data.get("command") == "TOGGLE_GLOBAL_CURSOR":
                                 active = data.get("active", False)
-                                self.toggle_global_cursor(active)
+                                self.toggle_global_cursor(active, notify_server=False)
                                     
             except (websockets.exceptions.ConnectionClosedError, ConnectionRefusedError):
                 print("[MouseController] Motor no encontrado. Reintentando en 2 segundos...")
+                self.websocket = None
                 self.current_state = "GAZE_CENTER"
                 await asyncio.sleep(2)
             except Exception as e:
                 print(f"[MouseController] Error: {e}")
+                self.websocket = None
                 self.current_state = "GAZE_CENTER"
                 await asyncio.sleep(2)
 

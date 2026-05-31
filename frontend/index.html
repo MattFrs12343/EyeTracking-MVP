@@ -218,6 +218,13 @@
             transform: translateY(-2px);
         }
 
+        .controls button.tracking-active {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border-color: rgba(34, 197, 94, 0.6);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+        }
+
         /* Contenedor del Interruptor */
         .toggle-container {
             display: flex;
@@ -470,6 +477,34 @@
                     setCalibrationMode(data.target);
                 } else if (data.type === "TESTING") {
                     setTestingMode(data);
+                } else if (data.type === "SYSTEM_COMMAND") {
+                     if (data.command === "TOGGLE_GLOBAL_CURSOR") {
+                         const active = data.active;
+                         toggleCursor.checked = active;
+                         if (active) {
+                             document.body.classList.add('hide-cursor');
+                         } else {
+                             document.body.classList.remove('hide-cursor');
+                         }
+                     } else if (data.command === "TOGGLE_MOUSE") {
+                         if (typeof isMouseTrackingActive === 'undefined') {
+                             window.isMouseTrackingActive = false;
+                         }
+                         window.isMouseTrackingActive = !window.isMouseTrackingActive;
+                         const btnTest = document.getElementById('btn-test');
+                         const btnOk = document.getElementById('btn-ok');
+                         if (window.isMouseTrackingActive) {
+                             btnTest.classList.add('tracking-active');
+                             btnOk.classList.add('tracking-active');
+                             btnTest.textContent = 'Test: ACTIVO';
+                             btnOk.textContent = 'Ok: ACTIVO';
+                         } else {
+                             btnTest.classList.remove('tracking-active');
+                             btnOk.classList.remove('tracking-active');
+                             btnTest.textContent = 'Test';
+                             btnOk.textContent = 'Ok';
+                         }
+                     }
                 }
             };
 

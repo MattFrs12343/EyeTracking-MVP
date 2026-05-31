@@ -162,14 +162,68 @@ def main():
         print("[Main] Flag --skip-calibration detectado. Saltando calibración visual y usando última config.")
 
     while cap.isOpened():
+        # Procesar comandos web de forma inmediata en cada iteración del bucle
+        while command_queue:
+            data = command_queue.pop(0)
+            cmd = data.get("command", "")
+            if cmd == "RECALIBRATE":
+                calib_idx = 0
+                in_calibration = True
+                intention_engine.calibration_points.clear()
+                print("[Main] Reiniciando calibración desde la web...")
+            elif cmd == "SET_MONITOR":
+                mon_idx = data.get("index", 0)
+                overlay.set_monitor(mon_idx)
+                print(f"[Main] Monitor seleccionado para calibración: Pantalla {mon_idx + 1}")
+            elif cmd == "APPLY_LAST_CONFIG":
+                in_calibration = False
+                overlay.hide()
+                calib_idx = 0
+                intention_engine.calibration_points.clear()
+                config_manager.load_config()
+                intention_engine = IntentionEngine(config_manager)
+                print("[Main] Configuración guardada cargada. Omitiendo calibración visual.")
+                if event_server.loop and event_server.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        event_server.broadcast_message({"type": "TESTING", "event": "GAZE_CENTER", "confidence": 1.0}), 
+                        event_server.loop
+                    )
+            elif cmd == "TEST_OK":
+                print("[Main] Modo Test Ok alternado. (Control de mouse on/off)")
+                if event_server.loop and event_server.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        event_server.broadcast_message({"type": "SYSTEM_COMMAND", "command": "TOGGLE_MOUSE"}), 
+                        event_server.loop
+                    )
+            elif cmd == "TOGGLE_GLOBAL_CURSOR":
+                active = data.get("active", False)
+                print(f"[Main] Solicitud de cambio en cursor global: active={active}")
+                if event_server.loop and event_server.loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        event_server.broadcast_message({"type": "SYSTEM_COMMAND", "command": "TOGGLE_GLOBAL_CURSOR", "active": active}), 
+                        event_server.loop
+                    )
+            elif cmd == "CLOSE":
+                print("[Main] Cerrando por comando web.")
+                cap.release()
+                cv2.destroyAllWindows()
+                return
+
         success, image = cap.read()
         if not success:
+            # Bombeamos la cola de eventos gráfica para no colgar la UI de Tkinter
+            cv2.waitKey(1)
             continue
 
         h, w, _ = image.shape
         results = face_detector.process(image)
         
         current_event = None
+        
+        # Leer tecla una sola vez para todo el frame
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            break
 
         if getattr(results, "face_landmarks", None) and len(results.face_landmarks) > 0:
             class FakeLandmarks:
@@ -179,58 +233,6 @@ def main():
             face_landmarks_data = FakeLandmarks(results.face_landmarks[0])
             image = face_detector.draw_landmarks(image, results)
             rel_x, rel_y = iris_tracker.calculate_relative_iris_position(face_landmarks_data, w, h)
-            
-            key = cv2.waitKey(1) & 0xFF
-
-            # Procesar comandos web
-            while command_queue:
-                data = command_queue.pop(0)
-                cmd = data.get("command", "")
-                if cmd == "RECALIBRATE":
-                    calib_idx = 0
-                    in_calibration = True
-                    intention_engine.calibration_points.clear()
-                    print("[Main] Reiniciando calibración desde la web...")
-                elif cmd == "SET_MONITOR":
-                    mon_idx = data.get("index", 0)
-                    overlay.set_monitor(mon_idx)
-                    print(f"[Main] Monitor seleccionado para calibración: Pantalla {mon_idx + 1}")
-                elif cmd == "APPLY_LAST_CONFIG":
-                    in_calibration = False
-                    overlay.hide()
-                    calib_idx = 0
-                    intention_engine.calibration_points.clear()
-                    config_manager.load_config()
-                    intention_engine = IntentionEngine(config_manager)
-                    print("[Main] Configuración guardada cargada. Omitiendo calibración visual.")
-                    if event_server.loop and event_server.loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            event_server.broadcast_message({"type": "TESTING", "event": "GAZE_CENTER", "confidence": 1.0}), 
-                            event_server.loop
-                        )
-                elif cmd == "TEST_OK":
-                    print("[Main] Modo Test Ok alternado. (Control de mouse on/off)")
-                    if event_server.loop and event_server.loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            event_server.broadcast_message({"type": "SYSTEM_COMMAND", "command": "TOGGLE_MOUSE"}), 
-                            event_server.loop
-                        )
-                elif cmd == "TOGGLE_GLOBAL_CURSOR":
-                    active = data.get("active", False)
-                    print(f"[Main] Solicitud de cambio en cursor global: active={active}")
-                    if event_server.loop and event_server.loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            event_server.broadcast_message({"type": "SYSTEM_COMMAND", "command": "TOGGLE_GLOBAL_CURSOR", "active": active}), 
-                            event_server.loop
-                        )
-                elif cmd == "CLOSE":
-                    print("[Main] Cerrando por comando web.")
-                    cap.release()
-                    cv2.destroyAllWindows()
-                    return
-
-            if key == ord('q'):
-                break
 
             if in_calibration:
                 target = calibration_sequence[calib_idx]
@@ -297,10 +299,6 @@ def main():
                             event_server.loop
                         )
             cv2.putText(image, "Rostro no detectado", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
 
         cv2.imshow('NeuroCoder Studio - Eye Tracking Engine Debug', image)
 
